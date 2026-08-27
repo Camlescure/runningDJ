@@ -311,3 +311,96 @@ export async function spotifyGetQueue(
     token,
   );
 }
+
+export async function spotifySkipNext(
+  token: string,
+): Promise<void> {
+  const response = await fetch(
+    "https://api.spotify.com/v1/me/player/next",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    },
+  );
+
+  if (response.ok) {
+    return;
+  }
+
+  const body = await response
+    .json()
+    .catch(() => null) as {
+      error?: {
+        message?: string;
+      };
+    } | null;
+
+  if (response.status === 404) {
+    throw new Error(
+      "No active Spotify device.",
+    );
+  }
+
+  if (response.status === 403) {
+    throw new Error(
+      "Spotify Premium and playback-control permission are required.",
+    );
+  }
+
+  throw new Error(
+    body?.error?.message ??
+      "Spotify could not skip to the next track.",
+  );
+}
+
+export async function spotifyPlayTrack(
+  uri: string,
+  token: string,
+): Promise<void> {
+  const response = await fetch(
+    "https://api.spotify.com/v1/me/player/play",
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        uris: [uri],
+      }),
+      cache: "no-store",
+    },
+  );
+
+  if (response.ok) {
+    return;
+  }
+
+  const body = await response
+    .json()
+    .catch(() => null) as {
+      error?: {
+        message?: string;
+      };
+    } | null;
+
+  if (response.status === 404) {
+    throw new Error(
+      "No active Spotify device.",
+    );
+  }
+
+  if (response.status === 403) {
+    throw new Error(
+      "Spotify Premium and playback-control permission are required.",
+    );
+  }
+
+  throw new Error(
+    body?.error?.message ??
+      "Spotify could not start this track.",
+  );
+}

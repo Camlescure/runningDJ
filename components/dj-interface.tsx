@@ -50,7 +50,101 @@ export function DjInterface({
   const [loadingQueue, setLoadingQueue] =
   useState(false);
 
+  const [playingNext, setPlayingNext] =
+  useState<string | null>(null);
+
+  const [skipping, setSkipping] =
+  useState(false);
+
   const [error, setError] = useState("");
+
+  async function playNext(track: Track) {
+  setPlayingNext(track.id);
+  setError("");
+
+  try {
+    const response = await fetch(
+      `/api/dj/session/${sessionId}/play-next`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          uri: track.uri,
+        }),
+      },
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ??
+          "Unable to play this track.",
+      );
+    }
+
+    // Spotify peut mettre un petit moment
+    // à refléter le nouveau playback.
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, 500),
+    );
+
+    await Promise.all([
+      loadPlayback(),
+      loadQueue(),
+    ]);
+  } catch (error) {
+    setError(
+      error instanceof Error
+        ? error.message
+        : "Unable to play this track.",
+    );
+  } finally {
+    setPlayingNext(null);
+  }
+}
+
+async function skip() {
+  setSkipping(true);
+  setError("");
+
+  try {
+    const response = await fetch(
+      `/api/dj/session/${sessionId}/skip`,
+      {
+        method: "POST",
+      },
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ??
+          "Unable to skip track.",
+      );
+    }
+
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, 500),
+    );
+
+    await Promise.all([
+      loadPlayback(),
+      loadQueue(),
+    ]);
+  } catch (error) {
+    setError(
+      error instanceof Error
+        ? error.message
+        : "Unable to skip track.",
+    );
+  } finally {
+    setSkipping(false);
+  }
+}
 
   const loadPlayback = useCallback(async () => {
     try {
@@ -243,6 +337,16 @@ export function DjInterface({
                   ? "▶ Playing"
                   : "Ⅱ Paused"}
               </p>
+              <button
+                  onClick={() => void skip()}
+                  disabled={
+                    skipping ||
+                    !currentTrack
+                  }
+                  className="mt-4 rounded-full border border-white/10 px-4 py-2 text-sm font-bold transition hover:bg-white/10 disabled:opacity-50"
+                >
+               {skipping ? "Skipping..." : "⏭ Skip"}
+</button>
             </div>
           </div>
         ) : (
@@ -253,6 +357,7 @@ export function DjInterface({
       </section>
 
       {/* UP NEXT */}
+
 
 <section className="rounded-3xl bg-white/5 p-6">
   <div className="flex items-center justify-between">
@@ -286,7 +391,7 @@ export function DjInterface({
             />
           )}
 
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate font-semibold">
               {track.name}
             </p>
@@ -295,6 +400,16 @@ export function DjInterface({
               {track.artists.join(", ")}
             </p>
           </div>
+
+          <button
+            onClick={() => void playNext(track)}
+            disabled={playingNext === track.id}
+            className="shrink-0 rounded-full border border-[#1ed760]/40 px-3 py-2 text-xs font-bold text-[#1ed760] transition hover:bg-[#1ed760]/10 disabled:opacity-50"
+          >
+            {playingNext === track.id
+              ? "Playing..."
+              : "▶ Play now"}
+          </button>
         </div>
       ))}
     </div>
