@@ -19,6 +19,11 @@ type Playback = {
   track: Track | null;
 };
 
+type QueueResponse = {
+  currentlyPlaying: Track | null;
+  queue: Track[];
+};
+
 type Props = {
   sessionId: string;
 };
@@ -36,6 +41,14 @@ export function DjInterface({
   const [adding, setAdding] = useState<string | null>(
     null,
   );
+  const [added, setAdded] = useState<string | null>(
+  null,
+);
+
+  const [queue, setQueue] = useState<Track[]>([]);
+
+  const [loadingQueue, setLoadingQueue] =
+  useState(false);
 
   const [error, setError] = useState("");
 
@@ -64,20 +77,49 @@ export function DjInterface({
     }
   }, [sessionId]);
 
-  useEffect(() => {
-    void loadPlayback();
+  const loadQueue = useCallback(async () => {
+  try {
+    setLoadingQueue(true);
 
-    const interval = window.setInterval(
-      () => {
-        void loadPlayback();
+    const response = await fetch(
+      `/api/dj/session/${sessionId}/queue`,
+      {
+        cache: "no-store",
       },
-      5000,
     );
 
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [loadPlayback]);
+    if (!response.ok) {
+      throw new Error(
+        "Unable to retrieve queue.",
+      );
+    }
+
+    const data: QueueResponse =
+      await response.json();
+
+    setQueue(data.queue);
+  } catch {
+    setError(
+      "Unable to retrieve the runner's queue.",
+    );
+  } finally {
+    setLoadingQueue(false);
+  }
+}, [sessionId]);
+
+  useEffect(() => {
+  void loadPlayback();
+  void loadQueue();
+
+  const interval = window.setInterval(() => {
+    void loadPlayback();
+    void loadQueue();
+  }, 5000);
+
+  return () => {
+    window.clearInterval(interval);
+  };
+}, [loadPlayback, loadQueue]);
 
   async function search() {
     const trimmed = query.trim();
@@ -114,43 +156,57 @@ export function DjInterface({
       setSearching(false);
     }
   }
-
+  
   async function addToQueue(track: Track) {
-    setAdding(track.id);
-    setError("");
+  setAdding(track.id);
+  setAdded(null);
+  setError("");
 
-    try {
-      const response = await fetch(
-        `/api/dj/session/${sessionId}/queue`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            uri: track.uri,
-          }),
+  try {
+    const response = await fetch(
+      `/api/dj/session/${sessionId}/queue`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          uri: track.uri,
+        }),
+      },
+    );
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(
-          data.error ??
-            "Unable to add track to queue.",
-        );
-      }
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Unable to add track.",
+    if (!response.ok) {
+      throw new Error(
+        data.error ??
+          "Unable to add track to queue.",
       );
-    } finally {
-      setAdding(null);
     }
+
+    // Confirmation visuelle
+    setAdded(track.id);
+
+    // Rafraîchit immédiatement la queue
+    await loadQueue();
+
+    // Retire la confirmation après 2 secondes
+    window.setTimeout(() => {
+      setAdded((current) =>
+        current === track.id ? null : current,
+      );
+    }, 2000);
+  } catch (error) {
+    setError(
+      error instanceof Error
+        ? error.message
+        : "Unable to add track.",
+    );
+  } finally {
+    setAdding(null);
   }
+}
 
   const currentTrack = playback?.track;
 
@@ -195,6 +251,59 @@ export function DjInterface({
           </p>
         )}
       </section>
+
+      {/* UP NEXT */}
+
+<section className="rounded-3xl bg-white/5 p-6">
+  <div className="flex items-center justify-between">
+    <p className="text-xs font-bold tracking-widest text-[#8da393]">
+      UP NEXT
+    </p>
+
+    {loadingQueue && (
+      <span className="text-xs text-[#6f8176]">
+        Updating...
+      </span>
+    )}
+  </div>
+
+  {queue.length > 0 ? (
+    <div className="mt-4 divide-y divide-white/5">
+      {queue.map((track, index) => (
+        <div
+          key={`${track.id}-${index}`}
+          className="flex items-center gap-3 py-3"
+        >
+          <span className="w-5 shrink-0 text-sm font-bold text-[#6f8176]">
+            {index + 1}
+          </span>
+
+          {track.album.image && (
+            <img
+              src={track.album.image}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-xl object-cover"
+            />
+          )}
+
+          <div className="min-w-0">
+            <p className="truncate font-semibold">
+              {track.name}
+            </p>
+
+            <p className="truncate text-sm text-[#8da393]">
+              {track.artists.join(", ")}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <p className="mt-4 text-sm text-[#8da393]">
+      Nothing queued yet.
+    </p>
+  )}
+</section>
 
       {/* SEARCH */}
 
@@ -262,12 +371,14 @@ export function DjInterface({
                 onClick={() =>
                   void addToQueue(track)
                 }
-                disabled={adding === track.id}
+                disabled={adding === track.id || added === track.id}
                 className="shrink-0 rounded-full bg-[#1ed760] px-4 py-2 text-sm font-bold text-[#061109] disabled:opacity-50"
               >
-                {adding === track.id
+               {adding === track.id
                   ? "Adding..."
-                  : "+ Add"}
+                  : added === track.id
+                    ? "✓ Added"
+                    : "+ Add"}
               </button>
             </article>
           ))}

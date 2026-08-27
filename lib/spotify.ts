@@ -34,6 +34,28 @@ export type Playback = {
   item: Track | null;
 };
 
+export type QueueTrack = {
+  id: string;
+  uri: string;
+  name: string;
+  artists: {
+    name: string;
+  }[];
+  album: {
+    name: string;
+    images: {
+      url: string;
+      height: number | null;
+      width: number | null;
+    }[];
+  };
+};
+
+export type SpotifyQueue = {
+  currently_playing: QueueTrack | null;
+  queue: QueueTrack[];
+};
+
 export type Device = {
   id: string;
   name: string;
@@ -278,5 +300,14 @@ export async function spotifyAddToQueue(
   throw new Error(
     body?.error?.message ??
       "Spotify could not add this track to the queue.",
+  );
+}
+
+export async function spotifyGetQueue(
+  token: string,
+): Promise<SpotifyQueue | null> {
+  return spotifyGet<SpotifyQueue>(
+    "/me/player/queue",
+    token,
   );
 }
