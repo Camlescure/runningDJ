@@ -33,6 +33,36 @@ function getDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_dj_sessions_expires
       ON dj_sessions(expires_at);
+    
+    CREATE TABLE IF NOT EXISTS dj_members (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES dj_sessions(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_dj_members_session
+      ON dj_members(session_id);
+
+    CREATE TABLE IF NOT EXISTS dj_track_actions (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      dj_id TEXT NOT NULL,
+      track_id TEXT NOT NULL,
+      track_uri TEXT NOT NULL,
+      track_name TEXT NOT NULL,
+      artist_name TEXT NOT NULL,
+      added_at INTEGER NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES dj_sessions(id),
+      FOREIGN KEY (dj_id) REFERENCES dj_members(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_dj_track_actions_session
+      ON dj_track_actions(session_id);
+
+    CREATE INDEX IF NOT EXISTS idx_dj_track_actions_track
+      ON dj_track_actions(session_id, track_id);
   `);
 
   return db;
@@ -45,6 +75,24 @@ export type DjSession = {
   status: "active" | "ended";
   createdAt: number;
   expiresAt: number;
+};
+
+export type DjMember = {
+  id: string;
+  sessionId: string;
+  name: string;
+  createdAt: number;
+};
+
+export type DjTrackAction = {
+  id: string;
+  sessionId: string;
+  djId: string;
+  trackId: string;
+  trackUri: string;
+  trackName: string;
+  artistName: string;
+  addedAt: number;
 };
 
 export function createDjSession(
@@ -150,6 +198,128 @@ export function endDjSession(id: string) {
       WHERE id = ?
     `)
     .run(id);
+}
+
+export function createDjMember(
+  sessionId: string,
+  name: string,
+): DjMember {
+  const database = getDatabase();
+
+  const id = randomBytes(12).toString("base64url");
+  const createdAt = Date.now();
+
+  database
+    .prepare(`
+      INSERT INTO dj_members (
+        id,
+        session_id,
+        name,
+        created_at
+      )
+      VALUES (?, ?, ?, ?)
+    `)
+    .run(
+      id,
+      sessionId,
+      name,
+      createdAt,
+    );
+
+  return {
+    id,
+    sessionId,
+    name,
+    createdAt,
+  };
+}
+
+export function getDjMember(
+  sessionId: string,
+  djId: string,
+): DjMember | null {
+  const database = getDatabase();
+
+  const row = database
+    .prepare(`
+      SELECT
+        id,
+        session_id,
+        name,
+        created_at
+      FROM dj_members
+      WHERE id = ?
+        AND session_id = ?
+    `)
+    .get(djId, sessionId) as
+    | {
+        id: string;
+        session_id: string;
+        name: string;
+        created_at: number;
+      }
+    | undefined;
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    name: row.name,
+    createdAt: row.created_at,
+  };
+}
+
+export function createDjTrackAction(
+  sessionId: string,
+  djId: string,
+  track: {
+    id: string;
+    uri: string;
+    name: string;
+    artists: string[];
+  },
+): DjTrackAction {
+  const database = getDatabase();
+
+  const id = randomBytes(12).toString("base64url");
+  const addedAt = Date.now();
+
+  database
+    .prepare(`
+      INSERT INTO dj_track_actions (
+        id,
+        session_id,
+        dj_id,
+        track_id,
+        track_uri,
+        track_name,
+        artist_name,
+        added_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .run(
+      id,
+      sessionId,
+      djId,
+      track.id,
+      track.uri,
+      track.name,
+      track.artists.join(", "),
+      addedAt,
+    );
+
+  return {
+    id,
+    sessionId,
+    djId,
+    trackId: track.id,
+    trackUri: track.uri,
+    trackName: track.name,
+    artistName: track.artists.join(", "),
+    addedAt,
+  };
 }
 
 function randomSessionId() {

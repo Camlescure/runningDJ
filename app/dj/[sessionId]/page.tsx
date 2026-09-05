@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { getDjSession } from "@/lib/db";
-import { DjInterface } from "@/components/dj-interface";
+import DjJoin from "@/components/dj-join";
 
 type DjPageProps = {
   params: Promise<{
@@ -37,8 +37,7 @@ export default async function DjPage({
             what they hear.
           </p>
         </header>
-
-        <DjInterface sessionId={sessionId} />
+	<DjJoin sessionId={sessionId} />
       </div>
     </main>
   );

@@ -1,6 +1,11 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getDjSession } from "@/lib/db";
+import {
+  createDjTrackAction,
+  getDjMember,
+  getDjSession,
+} from "@/lib/db";
 
 import {
   unseal,
@@ -27,7 +32,6 @@ export async function GET(
     const { sessionId } = await params;
 
     const session = getDjSession(sessionId);
-
     if (!session) {
       return NextResponse.json(
         { error: "DJ session not found or expired." },
@@ -114,6 +118,7 @@ export async function POST(
   try {
     const { sessionId } = await params;
 
+    // Check that the DJ session exists
     const session = getDjSession(sessionId);
 
     if (!session) {
@@ -123,12 +128,56 @@ export async function POST(
       );
     }
 
+    // Identify the DJ from the session cookie
+    const cookieStore = await cookies();
+
+    const djId = cookieStore.get(
+      `rundj_dj_${sessionId}`,
+    )?.value;
+
+    if (!djId) {
+      return NextResponse.json(
+        {
+          error:
+            "You must identify yourself as a DJ first.",
+        },
+        { status: 401 },
+      );
+    }
+
+    const dj = getDjMember(sessionId, djId);
+
+    if (!dj) {
+      return NextResponse.json(
+        { error: "DJ identity is invalid." },
+        { status: 401 },
+      );
+    }
+
+    // Read track information
     const body = await request.json();
 
     const uri =
       typeof body?.uri === "string"
         ? body.uri.trim()
         : "";
+
+    const trackId =
+      typeof body?.id === "string"
+        ? body.id.trim()
+        : "";
+
+    const trackName =
+      typeof body?.name === "string"
+        ? body.name.trim()
+        : "";
+
+    const artists = Array.isArray(body?.artists)
+      ? body.artists.filter(
+          (artist: unknown): artist is string =>
+            typeof artist === "string",
+        )
+      : [];
 
     if (!uri) {
       return NextResponse.json(
@@ -140,6 +189,13 @@ export async function POST(
     if (!/^spotify:track:[a-zA-Z0-9]+$/.test(uri)) {
       return NextResponse.json(
         { error: "Invalid Spotify track URI." },
+        { status: 400 },
+      );
+    }
+
+    if (!trackId || !trackName || artists.length === 0) {
+      return NextResponse.json(
+        { error: "Track information is required." },
         { status: 400 },
       );
     }
@@ -156,9 +212,22 @@ export async function POST(
 
     const valid = await validSession(spotifySession);
 
+    // Add the track to Spotify first
     await spotifyAddToQueue(
       uri,
       valid.accessToken,
+    );
+
+    // Only record the DJ action if Spotify succeeded
+    createDjTrackAction(
+      sessionId,
+      dj.id,
+      {
+        id: trackId,
+        uri,
+        name: trackName,
+        artists,
+      },
     );
 
     return NextResponse.json({

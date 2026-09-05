@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       seal(valid),
     );
 
-    const origin = new URL(request.url).origin;
+    const origin = process.env.APP_URL || new URL(request.url).origin;
 
     return NextResponse.json({
       sessionId: session.id,

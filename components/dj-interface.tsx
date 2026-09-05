@@ -41,110 +41,114 @@ export function DjInterface({
   const [adding, setAdding] = useState<string | null>(
     null,
   );
+
   const [added, setAdded] = useState<string | null>(
-  null,
-);
+    null,
+  );
 
   const [queue, setQueue] = useState<Track[]>([]);
 
   const [loadingQueue, setLoadingQueue] =
-  useState(false);
+    useState(false);
 
   const [playingNext, setPlayingNext] =
-  useState<string | null>(null);
+    useState<string | null>(null);
 
   const [skipping, setSkipping] =
-  useState(false);
+    useState(false);
 
   const [error, setError] = useState("");
 
   async function playNext(track: Track) {
-  setPlayingNext(track.id);
-  setError("");
+    setPlayingNext(track.id);
+    setError("");
 
-  try {
-    const response = await fetch(
-      `/api/dj/session/${sessionId}/play-next`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+    try {
+      const response = await fetch(
+        `/api/dj/session/${sessionId}/play-next`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: track.id,
+            uri: track.uri,
+            name: track.name,
+            artists: track.artists,
+          }),
         },
-        body: JSON.stringify({
-          uri: track.uri,
-        }),
-      },
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ??
-          "Unable to play this track.",
       );
-    }
 
-    // Spotify peut mettre un petit moment
-    // à refléter le nouveau playback.
-    await new Promise((resolve) =>
-      window.setTimeout(resolve, 500),
-    );
+      const data = await response.json();
 
-    await Promise.all([
-      loadPlayback(),
-      loadQueue(),
-    ]);
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Unable to play this track.",
-    );
-  } finally {
-    setPlayingNext(null);
-  }
-}
+      if (!response.ok) {
+        throw new Error(
+          data.error ??
+            "Unable to play this track.",
+        );
+      }
 
-async function skip() {
-  setSkipping(true);
-  setError("");
-
-  try {
-    const response = await fetch(
-      `/api/dj/session/${sessionId}/skip`,
-      {
-        method: "POST",
-      },
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ??
-          "Unable to skip track.",
+      // Spotify peut mettre un petit moment
+      // à refléter le nouveau playback.
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, 500),
       );
+
+      await Promise.all([
+        loadPlayback(),
+        loadQueue(),
+      ]);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to play this track.",
+      );
+    } finally {
+      setPlayingNext(null);
     }
-
-    await new Promise((resolve) =>
-      window.setTimeout(resolve, 500),
-    );
-
-    await Promise.all([
-      loadPlayback(),
-      loadQueue(),
-    ]);
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Unable to skip track.",
-    );
-  } finally {
-    setSkipping(false);
   }
-}
+
+  async function skip() {
+    setSkipping(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/dj/session/${sessionId}/skip`,
+        {
+          method: "POST",
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ??
+            "Unable to skip track.",
+        );
+      }
+
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, 500),
+      );
+
+      await Promise.all([
+        loadPlayback(),
+        loadQueue(),
+      ]);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to skip track.",
+      );
+    } finally {
+      setSkipping(false);
+    }
+  }
 
   const loadPlayback = useCallback(async () => {
     try {
@@ -172,48 +176,48 @@ async function skip() {
   }, [sessionId]);
 
   const loadQueue = useCallback(async () => {
-  try {
-    setLoadingQueue(true);
+    try {
+      setLoadingQueue(true);
 
-    const response = await fetch(
-      `/api/dj/session/${sessionId}/queue`,
-      {
-        cache: "no-store",
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        "Unable to retrieve queue.",
+      const response = await fetch(
+        `/api/dj/session/${sessionId}/queue`,
+        {
+          cache: "no-store",
+        },
       );
+
+      if (!response.ok) {
+        throw new Error(
+          "Unable to retrieve queue.",
+        );
+      }
+
+      const data: QueueResponse =
+        await response.json();
+
+      setQueue(data.queue);
+    } catch {
+      setError(
+        "Unable to retrieve the runner's queue.",
+      );
+    } finally {
+      setLoadingQueue(false);
     }
-
-    const data: QueueResponse =
-      await response.json();
-
-    setQueue(data.queue);
-  } catch {
-    setError(
-      "Unable to retrieve the runner's queue.",
-    );
-  } finally {
-    setLoadingQueue(false);
-  }
-}, [sessionId]);
+  }, [sessionId]);
 
   useEffect(() => {
-  void loadPlayback();
-  void loadQueue();
-
-  const interval = window.setInterval(() => {
     void loadPlayback();
     void loadQueue();
-  }, 5000);
 
-  return () => {
-    window.clearInterval(interval);
-  };
-}, [loadPlayback, loadQueue]);
+    const interval = window.setInterval(() => {
+      void loadPlayback();
+      void loadQueue();
+    }, 5000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [loadPlayback, loadQueue]);
 
   async function search() {
     const trimmed = query.trim();
@@ -250,57 +254,60 @@ async function skip() {
       setSearching(false);
     }
   }
-  
+
   async function addToQueue(track: Track) {
-  setAdding(track.id);
-  setAdded(null);
-  setError("");
+    setAdding(track.id);
+    setAdded(null);
+    setError("");
 
-  try {
-    const response = await fetch(
-      `/api/dj/session/${sessionId}/queue`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+    try {
+      const response = await fetch(
+        `/api/dj/session/${sessionId}/queue`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: track.id,
+            uri: track.uri,
+            name: track.name,
+            artists: track.artists,
+          }),
         },
-        body: JSON.stringify({
-          uri: track.uri,
-        }),
-      },
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ??
-          "Unable to add track to queue.",
       );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ??
+            "Unable to add track to queue.",
+        );
+      }
+
+      // Confirmation visuelle
+      setAdded(track.id);
+
+      // Rafraîchit immédiatement la queue
+      await loadQueue();
+
+      // Retire la confirmation après 2 secondes
+      window.setTimeout(() => {
+        setAdded((current) =>
+          current === track.id ? null : current,
+        );
+      }, 2000);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to add track.",
+      );
+    } finally {
+      setAdding(null);
     }
-
-    // Confirmation visuelle
-    setAdded(track.id);
-
-    // Rafraîchit immédiatement la queue
-    await loadQueue();
-
-    // Retire la confirmation après 2 secondes
-    window.setTimeout(() => {
-      setAdded((current) =>
-        current === track.id ? null : current,
-      );
-    }, 2000);
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Unable to add track.",
-    );
-  } finally {
-    setAdding(null);
   }
-}
 
   const currentTrack = playback?.track;
 
@@ -337,16 +344,19 @@ async function skip() {
                   ? "▶ Playing"
                   : "Ⅱ Paused"}
               </p>
+
               <button
-                  onClick={() => void skip()}
-                  disabled={
-                    skipping ||
-                    !currentTrack
-                  }
-                  className="mt-4 rounded-full border border-white/10 px-4 py-2 text-sm font-bold transition hover:bg-white/10 disabled:opacity-50"
-                >
-               {skipping ? "Skipping..." : "⏭ Skip"}
-</button>
+                onClick={() => void skip()}
+                disabled={
+                  skipping ||
+                  !currentTrack
+                }
+                className="mt-4 rounded-full border border-white/10 px-4 py-2 text-sm font-bold transition hover:bg-white/10 disabled:opacity-50"
+              >
+                {skipping
+                  ? "Skipping..."
+                  : "⏭ Skip"}
+              </button>
             </div>
           </div>
         ) : (
@@ -358,67 +368,70 @@ async function skip() {
 
       {/* UP NEXT */}
 
+      <section className="rounded-3xl bg-white/5 p-6">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-bold tracking-widest text-[#8da393]">
+            UP NEXT
+          </p>
 
-<section className="rounded-3xl bg-white/5 p-6">
-  <div className="flex items-center justify-between">
-    <p className="text-xs font-bold tracking-widest text-[#8da393]">
-      UP NEXT
-    </p>
-
-    {loadingQueue && (
-      <span className="text-xs text-[#6f8176]">
-        Updating...
-      </span>
-    )}
-  </div>
-
-  {queue.length > 0 ? (
-    <div className="mt-4 divide-y divide-white/5">
-      {queue.map((track, index) => (
-        <div
-          key={`${track.id}-${index}`}
-          className="flex items-center gap-3 py-3"
-        >
-          <span className="w-5 shrink-0 text-sm font-bold text-[#6f8176]">
-            {index + 1}
-          </span>
-
-          {track.album.image && (
-            <img
-              src={track.album.image}
-              alt=""
-              className="h-12 w-12 shrink-0 rounded-xl object-cover"
-            />
+          {loadingQueue && (
+            <span className="text-xs text-[#6f8176]">
+              Updating...
+            </span>
           )}
-
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold">
-              {track.name}
-            </p>
-
-            <p className="truncate text-sm text-[#8da393]">
-              {track.artists.join(", ")}
-            </p>
-          </div>
-
-          <button
-            onClick={() => void playNext(track)}
-            disabled={playingNext === track.id}
-            className="shrink-0 rounded-full border border-[#1ed760]/40 px-3 py-2 text-xs font-bold text-[#1ed760] transition hover:bg-[#1ed760]/10 disabled:opacity-50"
-          >
-            {playingNext === track.id
-              ? "Playing..."
-              : "▶ Play now"}
-          </button>
         </div>
-      ))}
-    </div>
-  ) : (
-    <p className="mt-4 text-sm text-[#8da393]">
-      Nothing queued yet.
-    </p>
-  )}
-</section>
+
+        {queue.length > 0 ? (
+          <div className="mt-4 divide-y divide-white/5">
+            {queue.map((track, index) => (
+              <div
+                key={`${track.id}-${index}`}
+                className="flex items-center gap-3 py-3"
+              >
+                <span className="w-5 shrink-0 text-sm font-bold text-[#6f8176]">
+                  {index + 1}
+                </span>
+
+                {track.album.image && (
+                  <img
+                    src={track.album.image}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-xl object-cover"
+                  />
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">
+                    {track.name}
+                  </p>
+
+                  <p className="truncate text-sm text-[#8da393]">
+                    {track.artists.join(", ")}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() =>
+                    void playNext(track)
+                  }
+                  disabled={
+                    playingNext === track.id
+                  }
+                  className="shrink-0 rounded-full border border-[#1ed760]/40 px-3 py-2 text-xs font-bold text-[#1ed760] transition hover:bg-[#1ed760]/10 disabled:opacity-50"
+                >
+                  {playingNext === track.id
+                    ? "Playing..."
+                    : "▶ Play now"}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-[#8da393]">
+            Nothing queued yet.
+          </p>
+        )}
+      </section>
 
       {/* SEARCH */}
 
@@ -486,10 +499,13 @@ async function skip() {
                 onClick={() =>
                   void addToQueue(track)
                 }
-                disabled={adding === track.id || added === track.id}
+                disabled={
+                  adding === track.id ||
+                  added === track.id
+                }
                 className="shrink-0 rounded-full bg-[#1ed760] px-4 py-2 text-sm font-bold text-[#061109] disabled:opacity-50"
               >
-               {adding === track.id
+                {adding === track.id
                   ? "Adding..."
                   : added === track.id
                     ? "✓ Added"
@@ -516,3 +532,5 @@ async function skip() {
     </div>
   );
 }
+
+
