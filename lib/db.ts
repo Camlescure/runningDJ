@@ -63,6 +63,16 @@ function getDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_dj_track_actions_track
       ON dj_track_actions(session_id, track_id);
+  
+    CREATE TABLE IF NOT EXISTS playback_state (
+      session_id TEXT PRIMARY KEY,
+      track_id TEXT,
+      observed_at INTEGER NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES dj_sessions(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_playback_state_session
+      ON playback_state(session_id);
   `);
 
   return db;
@@ -93,6 +103,12 @@ export type DjTrackAction = {
   trackName: string;
   artistName: string;
   addedAt: number;
+};
+
+export type PlaybackState = {
+  sessionId: string;
+  trackId: string | null;
+  observedAt: number;
 };
 
 export function createDjSession(
@@ -185,6 +201,74 @@ export function getDjSession(id: string): DjSession | null {
     status: row.status,
     createdAt: row.created_at,
     expiresAt: row.expires_at,
+  };
+}
+
+export function getPlaybackState(
+  sessionId: string,
+): PlaybackState | null {
+  const db = getDatabase();
+
+  const row = db
+    .prepare(
+      `
+      SELECT
+        session_id,
+        track_id,
+        observed_at
+      FROM playback_state
+      WHERE session_id = ?
+      `,
+    )
+    .get(sessionId) as
+    | {
+        session_id: string;
+        track_id: string | null;
+        observed_at: number;
+      }
+    | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    sessionId: row.session_id,
+    trackId: row.track_id,
+    observedAt: row.observed_at,
+  };
+}
+
+export function setPlaybackState(
+  sessionId: string,
+  trackId: string | null,
+): PlaybackState {
+  const db = getDatabase();
+  const observedAt = Date.now();
+
+  db.prepare(
+    `
+    INSERT INTO playback_state (
+      session_id,
+      track_id,
+      observed_at
+    )
+    VALUES (?, ?, ?)
+    ON CONFLICT(session_id)
+    DO UPDATE SET
+      track_id = excluded.track_id,
+      observed_at = excluded.observed_at
+    `,
+  ).run(
+    sessionId,
+    trackId,
+    observedAt,
+  );
+
+  return {
+    sessionId,
+    trackId,
+    observedAt,
   };
 }
 
@@ -320,6 +404,23 @@ export function createDjTrackAction(
     artistName: track.artists.join(", "),
     addedAt,
   };
+}
+
+export function getActiveDjSessionIds(): string[] {
+  const db = getDatabase();
+
+  const rows = db
+    .prepare(
+      `
+      SELECT id
+      FROM dj_sessions
+      WHERE status = 'active'
+        AND expires_at > ?
+      `,
+    )
+    .all(Date.now()) as { id: string }[];
+
+  return rows.map((row) => row.id);
 }
 
 function randomSessionId() {
