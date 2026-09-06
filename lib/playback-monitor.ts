@@ -1,7 +1,9 @@
 import {
   getActiveDjSessionIds,
   getDjSession,
+  getDjMember,
   getPlaybackState,
+  getLatestDjTrackAction,
   setPlaybackState,
 } from "@/lib/db";
 
@@ -51,9 +53,12 @@ async function checkSession(sessionId: string) {
     }
 
     const currentTrackId = playback.item.id;
+
     const previousState =
       getPlaybackState(sessionId);
 
+    // First observation:
+    // remember the current track without triggering an event.
     if (!previousState) {
       setPlaybackState(
         sessionId,
@@ -67,17 +72,51 @@ async function checkSession(sessionId: string) {
       return;
     }
 
+    // The track changed.
     if (previousState.trackId !== currentTrackId) {
       setPlaybackState(
         sessionId,
         currentTrackId,
       );
 
+      // We only consider the track as "started"
+      // when Spotify says it is actually playing.
       if (playback.is_playing) {
         console.log(
           `[PlaybackMonitor] TRACK STARTED: ${playback.item.name} — ${playback.item.artists
             .map((artist) => artist.name)
             .join(", ")}`,
+        );
+
+        const djAction =
+          getLatestDjTrackAction(
+            sessionId,
+            currentTrackId,
+          );
+
+        if (!djAction) {
+          console.log(
+            `[PlaybackMonitor] No RunDJ DJ attribution for track ${currentTrackId}`,
+          );
+
+          return;
+        }
+
+        const dj = getDjMember(
+          sessionId,
+          djAction.djId,
+        );
+
+        if (!dj) {
+          console.log(
+            `[PlaybackMonitor] DJ ${djAction.djId} not found`,
+          );
+
+          return;
+        }
+
+        console.log(
+          `[PlaybackMonitor] DJ ATTRIBUTION: ${dj.name}`,
         );
       }
     }
@@ -90,7 +129,8 @@ async function checkSession(sessionId: string) {
 }
 
 async function checkAllSessions() {
-  const sessionIds = getActiveDjSessionIds();
+  const sessionIds =
+    getActiveDjSessionIds();
 
   for (const sessionId of sessionIds) {
     await checkSession(sessionId);

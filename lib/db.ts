@@ -423,6 +423,60 @@ export function getActiveDjSessionIds(): string[] {
   return rows.map((row) => row.id);
 }
 
+export function getLatestDjTrackAction(
+  sessionId: string,
+  trackId: string,
+): DjTrackAction | null {
+  const db = getDatabase();
+
+  const row = db
+    .prepare(
+      `
+      SELECT
+        id,
+        session_id,
+        dj_id,
+        track_id,
+        track_uri,
+        track_name,
+        artist_name,
+        added_at
+      FROM dj_track_actions
+      WHERE session_id = ?
+        AND track_id = ?
+      ORDER BY added_at DESC
+      LIMIT 1
+      `,
+    )
+    .get(sessionId, trackId) as
+    | {
+        id: string;
+        session_id: string;
+        dj_id: string;
+        track_id: string;
+        track_uri: string;
+        track_name: string;
+        artist_name: string;
+        added_at: number;
+      }
+    | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    djId: row.dj_id,
+    trackId: row.track_id,
+    trackUri: row.track_uri,
+    trackName: row.track_name,
+    artistName: row.artist_name,
+    addedAt: row.added_at,
+  };
+}
+
 function randomSessionId() {
   return randomBytes(18).toString("base64url");
 }
