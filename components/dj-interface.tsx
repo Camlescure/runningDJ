@@ -47,68 +47,13 @@ export function DjInterface({
   );
 
   const [queue, setQueue] = useState<Track[]>([]);
-
   const [loadingQueue, setLoadingQueue] =
     useState(false);
-
-  const [playingNext, setPlayingNext] =
-    useState<string | null>(null);
 
   const [skipping, setSkipping] =
     useState(false);
 
   const [error, setError] = useState("");
-
-  async function playNext(track: Track) {
-    setPlayingNext(track.id);
-    setError("");
-
-    try {
-      const response = await fetch(
-        `/api/dj/session/${sessionId}/play-next`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            id: track.id,
-            uri: track.uri,
-            name: track.name,
-            artists: track.artists,
-          }),
-        },
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.error ??
-            "Unable to play this track.",
-        );
-      }
-
-      // Spotify peut mettre un petit moment
-      // à refléter le nouveau playback.
-      await new Promise((resolve) =>
-        window.setTimeout(resolve, 500),
-      );
-
-      await Promise.all([
-        loadPlayback(),
-        loadQueue(),
-      ]);
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Unable to play this track.",
-      );
-    } finally {
-      setPlayingNext(null);
-    }
-  }
 
   async function skip() {
     setSkipping(true);
@@ -286,13 +231,10 @@ export function DjInterface({
         );
       }
 
-      // Confirmation visuelle
       setAdded(track.id);
 
-      // Rafraîchit immédiatement la queue
       await loadQueue();
 
-      // Retire la confirmation après 2 secondes
       window.setTimeout(() => {
         setAdded((current) =>
           current === track.id ? null : current,
@@ -314,7 +256,6 @@ export function DjInterface({
   return (
     <div className="mt-10 space-y-6">
       {/* NOW PLAYING */}
-
       <section className="rounded-3xl bg-white/5 p-6">
         <p className="text-xs font-bold tracking-widest text-[#8da393]">
           NOW PLAYING
@@ -367,7 +308,6 @@ export function DjInterface({
       </section>
 
       {/* UP NEXT */}
-
       <section className="rounded-3xl bg-white/5 p-6">
         <div className="flex items-center justify-between">
           <p className="text-xs font-bold tracking-widest text-[#8da393]">
@@ -409,20 +349,6 @@ export function DjInterface({
                     {track.artists.join(", ")}
                   </p>
                 </div>
-
-                <button
-                  onClick={() =>
-                    void playNext(track)
-                  }
-                  disabled={
-                    playingNext === track.id
-                  }
-                  className="shrink-0 rounded-full border border-[#1ed760]/40 px-3 py-2 text-xs font-bold text-[#1ed760] transition hover:bg-[#1ed760]/10 disabled:opacity-50"
-                >
-                  {playingNext === track.id
-                    ? "Playing..."
-                    : "▶ Play now"}
-                </button>
               </div>
             ))}
           </div>
@@ -434,7 +360,6 @@ export function DjInterface({
       </section>
 
       {/* SEARCH */}
-
       <section className="rounded-3xl bg-white/5 p-6">
         <p className="text-xs font-bold tracking-widest text-[#8da393]">
           SEARCH SPOTIFY
@@ -469,7 +394,6 @@ export function DjInterface({
       </section>
 
       {/* RESULTS */}
-
       {results.length > 0 && (
         <section className="space-y-3">
           {results.map((track) => (
@@ -532,5 +456,3 @@ export function DjInterface({
     </div>
   );
 }
-
-

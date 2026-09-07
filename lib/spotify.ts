@@ -88,7 +88,8 @@ export async function exchangeCode(
     {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type":
+          "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
         client_id: clientId,
@@ -108,13 +109,16 @@ export async function exchangeCode(
     !data.access_token ||
     !data.refresh_token
   ) {
-    throw new Error("Spotify token exchange failed");
+    throw new Error(
+      "Spotify token exchange failed",
+    );
   }
 
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
+    expiresAt:
+      Date.now() + data.expires_in * 1000,
     scope: data.scope ?? "",
   };
 }
@@ -133,7 +137,8 @@ export async function validSession(
     {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type":
+          "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
         client_id: clientId,
@@ -147,14 +152,17 @@ export async function validSession(
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-    throw new Error("Spotify token refresh failed");
+    throw new Error(
+      "Spotify token refresh failed",
+    );
   }
 
   return {
     accessToken: data.access_token,
     refreshToken:
       data.refresh_token ?? s.refreshToken,
-    expiresAt: Date.now() + data.expires_in * 1000,
+    expiresAt:
+      Date.now() + data.expires_in * 1000,
     scope: data.scope ?? s.scope,
   };
 }
@@ -178,7 +186,9 @@ export async function spotifyGet<T>(
   }
 
   if (!response.ok) {
-    throw new Error("Spotify data unavailable");
+    throw new Error(
+      "Spotify data unavailable",
+    );
   }
 
   return response.json() as Promise<T>;
@@ -204,9 +214,10 @@ export async function spotifyCommand(
     return;
   }
 
-  const body = await response
-    .json()
-    .catch(() => null) as {
+  const body =
+    (await response
+      .json()
+      .catch(() => null)) as {
       error?: {
         message?: string;
       };
@@ -243,10 +254,11 @@ export async function spotifySearchTracks(
     limit: "10",
   });
 
-  const result = await spotifyGet<SearchResponse>(
-    `/search?${params.toString()}`,
-    token,
-  );
+  const result =
+    await spotifyGet<SearchResponse>(
+      `/search?${params.toString()}`,
+      token,
+    );
 
   return result?.tracks.items ?? [];
 }
@@ -277,9 +289,10 @@ export async function spotifyAddToQueue(
     return;
   }
 
-  const body = await response
-    .json()
-    .catch(() => null) as {
+  const body =
+    (await response
+      .json()
+      .catch(() => null)) as {
       error?: {
         message?: string;
       };
@@ -330,9 +343,10 @@ export async function spotifySkipNext(
     return;
   }
 
-  const body = await response
-    .json()
-    .catch(() => null) as {
+  const body =
+    (await response
+      .json()
+      .catch(() => null)) as {
       error?: {
         message?: string;
       };
@@ -353,54 +367,5 @@ export async function spotifySkipNext(
   throw new Error(
     body?.error?.message ??
       "Spotify could not skip to the next track.",
-  );
-}
-
-export async function spotifyPlayTrack(
-  uri: string,
-  token: string,
-): Promise<void> {
-  const response = await fetch(
-    "https://api.spotify.com/v1/me/player/play",
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        uris: [uri],
-      }),
-      cache: "no-store",
-    },
-  );
-
-  if (response.ok) {
-    return;
-  }
-
-  const body = await response
-    .json()
-    .catch(() => null) as {
-      error?: {
-        message?: string;
-      };
-    } | null;
-
-  if (response.status === 404) {
-    throw new Error(
-      "No active Spotify device.",
-    );
-  }
-
-  if (response.status === 403) {
-    throw new Error(
-      "Spotify Premium and playback-control permission are required.",
-    );
-  }
-
-  throw new Error(
-    body?.error?.message ??
-      "Spotify could not start this track.",
   );
 }
