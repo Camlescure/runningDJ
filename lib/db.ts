@@ -73,7 +73,20 @@ function getDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_playback_state_session
       ON playback_state(session_id);
-  `);
+
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES dj_sessions(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_push_subscriptions_session
+      ON push_subscriptions(session_id);
+    `);
 
   return db;
 }
@@ -109,6 +122,15 @@ export type PlaybackState = {
   sessionId: string;
   trackId: string | null;
   observedAt: number;
+};
+
+export type PushSubscription = {
+  id: string;
+  sessionId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  createdAt: number;
 };
 
 export function createDjSession(
@@ -475,6 +497,88 @@ export function getLatestDjTrackAction(
     artistName: row.artist_name,
     addedAt: row.added_at,
   };
+}
+
+export function createPushSubscription(
+  sessionId: string,
+  subscription: {
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+  },
+): PushSubscription {
+  const db = getDatabase();
+
+  const id = crypto.randomUUID();
+  const createdAt = Date.now();
+
+  db.prepare(
+    `
+    INSERT INTO push_subscriptions (
+      id,
+      session_id,
+      endpoint,
+      p256dh,
+      auth,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+    `,
+  ).run(
+    id,
+    sessionId,
+    subscription.endpoint,
+    subscription.p256dh,
+    subscription.auth,
+    createdAt,
+  );
+
+  return {
+    id,
+    sessionId,
+    endpoint: subscription.endpoint,
+    p256dh: subscription.p256dh,
+    auth: subscription.auth,
+    createdAt,
+  };
+}
+
+export function getPushSubscriptions(
+  sessionId: string,
+): PushSubscription[] {
+  const db = getDatabase();
+
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        id,
+        session_id,
+        endpoint,
+        p256dh,
+        auth,
+        created_at
+      FROM push_subscriptions
+      WHERE session_id = ?
+      `,
+    )
+    .all(sessionId) as {
+    id: string;
+    session_id: string;
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+    created_at: number;
+  }[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    sessionId: row.session_id,
+    endpoint: row.endpoint,
+    p256dh: row.p256dh,
+    auth: row.auth,
+    createdAt: row.created_at,
+  }));
 }
 
 function randomSessionId() {

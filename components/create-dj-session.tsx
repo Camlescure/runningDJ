@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PushNotifications } from "@/components/push-notifications";
 
 type CreateSessionResponse = {
   sessionId: string;
@@ -72,6 +73,8 @@ export function CreateDjSession() {
         </button>
       ) : (
         <div className="mt-5 space-y-3">
+          <PushNotifications sessionId={session.sessionId} />
+
           <div className="rounded-2xl border border-white/10 bg-[#07140f] p-4">
             <p className="text-xs text-[#8da393]">
               SHARE THIS LINK
@@ -114,3 +117,4 @@ export function CreateDjSession() {
     </section>
   );
 }
+

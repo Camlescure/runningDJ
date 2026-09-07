@@ -4,6 +4,7 @@ import {
   getDjMember,
   getPlaybackState,
   getLatestDjTrackAction,
+  getPushSubscriptions,
   setPlaybackState,
 } from "@/lib/db";
 
@@ -17,6 +18,8 @@ import {
   unseal,
   type SpotifySession,
 } from "@/lib/session";
+
+import { sendPushNotification } from "@/lib/push";
 
 const POLL_INTERVAL = 5000;
 
@@ -118,6 +121,45 @@ async function checkSession(sessionId: string) {
         console.log(
           `[PlaybackMonitor] DJ ATTRIBUTION: ${dj.name}`,
         );
+
+        const subscriptions =
+          getPushSubscriptions(sessionId);
+
+        if (subscriptions.length === 0) {
+          console.log(
+            `[PlaybackMonitor] No push subscriptions for session ${sessionId}`,
+          );
+
+          return;
+        }
+
+        const artists =
+          playback.item.artists
+            .map((artist) => artist.name)
+            .join(", ");
+
+        const payload = {
+          title: "RunDJ 🎵",
+          body: `${dj.name} a choisi "${playback.item.name}" — ${artists}`,
+        };
+
+        for (const subscription of subscriptions) {
+          try {
+            await sendPushNotification(
+              subscription,
+              payload,
+            );
+
+            console.log(
+              `[PlaybackMonitor] PUSH SENT: ${dj.name} → ${playback.item.name}`,
+            );
+          } catch (error) {
+            console.error(
+              `[PlaybackMonitor] PUSH ERROR for ${subscription.endpoint}:`,
+              error,
+            );
+          }
+        }
       }
     }
   } catch (error) {
